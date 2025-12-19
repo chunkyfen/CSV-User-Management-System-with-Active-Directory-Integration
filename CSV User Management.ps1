@@ -39,7 +39,6 @@ function Initialize-CSVFile {
                 Nom = "Nicholas"
                 Prénom = "Judith"
                 Poste = "Secrétaire"
-                Poste = "nJudith"
                 Password = "nJ12345!"
                 Statut = "Verrouillé"
                 DateDernierLogin = "2024-08-24 9:00:00"
