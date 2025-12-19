@@ -158,16 +158,14 @@ function Option3-ConnectToAccount {
 function Option4-ExportToAD {
     $users = Import-Csv -Path $csvPath -Delimiter ";"
 
-    $ouMapping = @{
-        "TTP"        = "OU=TTP,OU=Exercice3,DC=script,DC=local"
-        "Secrétaire" = "OU=Secrétaire,OU=Exercice3,DC=script,DC=local"
-        "admin"      = "OU=admin,OU=Exercice3,DC=script,DC=local"
-    }
+    # Tous les utilisateurs vont dans l'OU Exercice3
+    $ouPath = "OU=Exercice3,DC=script,DC=local"
 
+    # Groupes dans l'OU Exercice3
     $groupMapping = @{
         "TTP"        = "CN=TTP,OU=Exercice3,DC=script,DC=local"
-        "Secrétaire" = "CN=Secretaire,OU=Exercice3,DC=script,DC=local"
-        "admin"      = "CN=Administrators,CN=Builtin,DC=script,DC=local"
+        "Secrétaire" = "CN=Secrétaire,OU=Exercice3,DC=script,DC=local"
+        "admin"      = "CN=admin,OU=Exercice3,DC=script,DC=local"
     }
 
     foreach ($user in $users) {
