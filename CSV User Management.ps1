@@ -10,7 +10,7 @@
 Import-Module ActiveDirectory
 
 # Define the CSV file path - this will be in the same directory as the script
-$csvPath = "utilisateurs.csv"
+$csvPath = "C:\Users\Administrator\Downloads\utilisateurs.csv"
 
 # Define the Active Directory domain
 $domain = "script.local"
