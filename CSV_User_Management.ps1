@@ -158,26 +158,23 @@ function Option3-ConnectToAccount {
 
 function Option4-ExportToAD {
     $users = Import-Csv -Path $csvPath -Delimiter ";"
+
+    # Tous les utilisateurs vont dans l'OU Exercice3
     $ouPath = "OU=Exercice3,DC=script,DC=local"
 
+    # Groupes dans l'OU Exercice3
     $groupMapping = @{
-        "TTP"        = "CN=TTP,$ouPath"
-        "Secrétaire" = "CN=Secrétaire,$ouPath"
-        "admin"      = "CN=admin,$ouPath"
+        "TTP"        = "CN=TTP,OU=Exercice3,DC=script,DC=local"
+        "Secrétaire" = "CN=Secrétaire,OU=Exercice3,DC=script,DC=local"
+        "admin"      = "CN=admin,OU=Exercice3,DC=script,DC=local"
     }
-
-    $successCount = 0
-    $skipCount = 0
-    $errorCount = 0
 
     foreach ($user in $users) {
         Write-Host "Traitement de $($user.UserName)..." -ForegroundColor Gray
-
         try {
             $existing = Get-ADUser -Filter "SamAccountName -eq '$($user.UserName)'" -ErrorAction SilentlyContinue
             if ($existing) {
                 Write-Host "  → Utilisateur existe déjà, ignoré" -ForegroundColor Yellow
-                $skipCount++
                 continue
             }
 
@@ -193,19 +190,17 @@ function Option4-ExportToAD {
                        -Path $ouPath `
                        -ChangePasswordAtLogon $true
 
+            # Ajout au groupe si mappé
             if ($groupMapping.ContainsKey($user.Poste)) {
                 $groupDN = $groupMapping[$user.Poste]
                 Add-ADGroupMember -Identity $groupDN -Members $user.UserName
                 Write-Host "  ✓ Ajouté au groupe $($user.Poste)" -ForegroundColor Green
             } else {
-                Write-Host "  ✗ Poste inconnu : $($user.Poste)" -ForegroundColor Red
+                Write-Host "  ✗ Poste inconnu ou non mappé : '$($user.Poste)'" -ForegroundColor Red
             }
-
-            $successCount++
 
         } catch {
             Write-Host "  ✗ Erreur: $($_.Exception.Message)" -ForegroundColor Red
-            $errorCount++
         }
     }
 
@@ -213,12 +208,10 @@ function Option4-ExportToAD {
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "   RÉSUMÉ DE L'EXPORTATION" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "Utilisateurs créés : $successCount" -ForegroundColor Green
-    Write-Host "Utilisateurs ignorés : $skipCount" -ForegroundColor Yellow
-    Write-Host "Erreurs : $errorCount" -ForegroundColor Red
-    Write-Host "Total traité : $($users.Count)" -ForegroundColor White
+    Write-Host "Total utilisateurs traités : $($users.Count)" -ForegroundColor White
     Write-Host ""
 }
+
 
 # ============================================================================
 # MAIN PROGRAM EXECUTION
