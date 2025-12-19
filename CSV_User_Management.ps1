@@ -2,8 +2,6 @@
 # EXERCISE 3: CSV USER MANAGEMENT SYSTEM WITH ACTIVE DIRECTORY INTEGRATION
 # ============================================================================
 # Domain: script.local
-# This script manages user accounts through a CSV file and can export them
-# to Active Directory. It provides a menu-driven interface for all operations.
 # ============================================================================
 
 Import-Module ActiveDirectory
@@ -156,24 +154,10 @@ function Option3-ConnectToAccount {
 
 # ============================================================================
 # FUNCTION: Option4-ExportToAD
-# Export users to AD, placing them in OU by Poste and adding to mapped group
 # ============================================================================
 function Option4-ExportToAD {
-    Write-Host ""
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "   EXPORTER VERS ACTIVE DIRECTORY" -ForegroundColor Cyan
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host ""
-
-    # Import users
     $users = Import-Csv -Path $csvPath -Delimiter ";"
 
-    # Counters
-    $successCount = 0
-    $skipCount    = 0
-    $errorCount   = 0
-
-    # OU and Group mappings
     $ouMapping = @{
         "TTP"        = "OU=TTP,OU=Exercice3,DC=script,DC=local"
         "Secrétaire" = "OU=Secrétaire,OU=Exercice3,DC=script,DC=local"
@@ -186,51 +170,27 @@ function Option4-ExportToAD {
         "admin"      = "CN=Administrators,CN=Builtin,DC=script,DC=local"
     }
 
-    Write-Host "Début de l'exportation..." -ForegroundColor Yellow
-    Write-Host ""
-
     foreach ($user in $users) {
-        Write-Host "Traitement de $($user.UserName)..." -ForegroundColor Gray
-
         try {
-            # Skip disabled/inactive accounts if desired (optional)
-            # if ($user.Statut -ne "Actif") { Write-Host "  → Compte non actif, ignoré"; $skipCount++; continue }
-
-            # Check if user exists
             $existing = Get-ADUser -Filter "SamAccountName -eq '$($user.UserName)'" -ErrorAction SilentlyContinue
-            if ($existing) {
-                Write-Host "  → Utilisateur existe déjà, ignoré" -ForegroundColor Yellow
-                $skipCount++
-                continue
-            }
+            if ($existing) { Write-Host "→ $($user.UserName) existe déjà, ignoré"; continue }
 
-            # Resolve OU path from Poste
             $ouPath = $ouMapping[$user.Poste]
-            if (-not $ouPath) {
-                Write-Host "  ✗ Poste inconnu ou OU non mappé: $($user.Poste)" -ForegroundColor Red
-                $errorCount++
-                continue
-            }
+            if (-not $ouPath) { Write-Host "✗ OU non trouvé pour $($user.Poste)"; continue }
 
-            # Prepare password
             $securePassword = ConvertTo-SecureString $user.Password -AsPlainText -Force
 
-            # Create AD user
-            $adParams = @{
-                Name                  = "$($user.Prénom) $($user.Nom)"
-                GivenName             = $user.Prénom
-                Surname               = $user.Nom
-                SamAccountName        = $user.UserName
-                UserPrincipalName     = "$($user.UserName)@$domain"
-                AccountPassword       = $securePassword
-                Enabled               = ($user.Statut -eq "Actif")
-                Path                  = $ouPath
-                ChangePasswordAtLogon = $true
-            }
+            New-ADUser -Name "$($user.Prénom) $($user.Nom)" `
+                       -GivenName $user.Prénom `
+                       -Surname $user.Nom `
+                       -SamAccountName $user.UserName `
+                       -UserPrincipalName "$($user.UserName)@$domain" `
+                       -AccountPassword $securePassword `
+                       -Enabled ($user.Statut -eq "Actif") `
+                       -Path $ouPath `
+                       -ChangePasswordAtLogon $true
 
-            New-ADUser @adParams
-
-            # Add to group
+            # Add to group if mapping exists
             $groupDN = $groupMapping[$user.Poste]
             if ($groupDN) {
                 Add-ADGroupMember -Identity $groupDN -Members $user.UserName
@@ -239,23 +199,16 @@ function Option4-ExportToAD {
                 Write-Host "  ! Aucun groupe mappé pour le poste $($user.Poste)" -ForegroundColor Yellow
             }
 
-            $successCount++
-
         } catch {
             Write-Host "  ✗ Erreur: $($_.Exception.Message)" -ForegroundColor Red
-            $errorCount++
         }
     }
 
-    # Summary
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "   RÉSUMÉ DE L'EXPORTATION" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "Utilisateurs créés : $successCount" -ForegroundColor Green
-    Write-Host "Utilisateurs ignorés : $skipCount" -ForegroundColor Yellow
-    Write-Host "Erreurs : $errorCount" -ForegroundColor Red
-    Write-Host "Total traité : $($users.Count)" -ForegroundColor White
+    Write-Host "Total utilisateurs traités : $($users.Count)" -ForegroundColor White
     Write-Host ""
 }
 
@@ -268,8 +221,6 @@ Write-Host "  SYSTÈME DE GESTION DES UTILISATEURS" -ForegroundColor Cyan
 Write-Host "  Domaine: script.local" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
-
-Initialize-CSVFile
 
 do {
     Show-Menu
