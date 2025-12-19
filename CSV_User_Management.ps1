@@ -172,4 +172,5 @@ function Option3-ConnectToAccount {
     $users | Export-Csv -Path $csvPath -Delimiter ";" -NoTypeInformation -Encoding UTF8
 
     Write-Host "✓ LOGIN RÉUSSI" -ForegroundColor Green
-    Write-Host
+    Write-Host ""
+}
