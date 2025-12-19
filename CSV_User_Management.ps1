@@ -155,26 +155,31 @@ function Option3-ConnectToAccount {
 # ============================================================================
 # FUNCTION: Option4-ExportToAD
 # ============================================================================
+
 function Option4-ExportToAD {
     $users = Import-Csv -Path $csvPath -Delimiter ";"
-
-    # Tous les utilisateurs vont dans l'OU Exercice3
     $ouPath = "OU=Exercice3,DC=script,DC=local"
 
-    # Groupes dans l'OU Exercice3
     $groupMapping = @{
-        "TTP"        = "CN=TTP,OU=Exercice3,DC=script,DC=local"
-        "Secrétaire" = "CN=Secrétaire,OU=Exercice3,DC=script,DC=local"
-        "admin"      = "CN=admin,OU=Exercice3,DC=script,DC=local"
+        "TTP"        = "CN=TTP,$ouPath"
+        "Secrétaire" = "CN=Secrétaire,$ouPath"
+        "admin"      = "CN=admin,$ouPath"
     }
 
+    $successCount = 0
+    $skipCount = 0
+    $errorCount = 0
+
     foreach ($user in $users) {
+        Write-Host "Traitement de $($user.UserName)..." -ForegroundColor Gray
+
         try {
             $existing = Get-ADUser -Filter "SamAccountName -eq '$($user.UserName)'" -ErrorAction SilentlyContinue
-            if ($existing) { Write-Host "→ $($user.UserName) existe déjà, ignoré"; continue }
-
-            $ouPath = $ouMapping[$user.Poste]
-            if (-not $ouPath) { Write-Host "✗ OU non trouvé pour $($user.Poste)"; continue }
+            if ($existing) {
+                Write-Host "  → Utilisateur existe déjà, ignoré" -ForegroundColor Yellow
+                $skipCount++
+                continue
+            }
 
             $securePassword = ConvertTo-SecureString $user.Password -AsPlainText -Force
 
@@ -188,17 +193,19 @@ function Option4-ExportToAD {
                        -Path $ouPath `
                        -ChangePasswordAtLogon $true
 
-            # Add to group if mapping exists
-            $groupDN = $groupMapping[$user.Poste]
-            if ($groupDN) {
+            if ($groupMapping.ContainsKey($user.Poste)) {
+                $groupDN = $groupMapping[$user.Poste]
                 Add-ADGroupMember -Identity $groupDN -Members $user.UserName
-                Write-Host "  ✓ Créé et ajouté au groupe $($user.Poste)" -ForegroundColor Green
+                Write-Host "  ✓ Ajouté au groupe $($user.Poste)" -ForegroundColor Green
             } else {
-                Write-Host "  ! Aucun groupe mappé pour le poste $($user.Poste)" -ForegroundColor Yellow
+                Write-Host "  ✗ Poste inconnu : $($user.Poste)" -ForegroundColor Red
             }
+
+            $successCount++
 
         } catch {
             Write-Host "  ✗ Erreur: $($_.Exception.Message)" -ForegroundColor Red
+            $errorCount++
         }
     }
 
@@ -206,7 +213,10 @@ function Option4-ExportToAD {
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "   RÉSUMÉ DE L'EXPORTATION" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "Total utilisateurs traités : $($users.Count)" -ForegroundColor White
+    Write-Host "Utilisateurs créés : $successCount" -ForegroundColor Green
+    Write-Host "Utilisateurs ignorés : $skipCount" -ForegroundColor Yellow
+    Write-Host "Erreurs : $errorCount" -ForegroundColor Red
+    Write-Host "Total traité : $($users.Count)" -ForegroundColor White
     Write-Host ""
 }
 
