@@ -9,27 +9,7 @@
 Import-Module ActiveDirectory
 
 $csvPath = "C:\Users\Administrator\Downloads\utilisateurs.csv"
-$domain = "script.local"
-
-# ============================================================================
-# FUNCTION: Initialize-CSVFile
-# ============================================================================
-function Initialize-CSVFile {
-    if (-not (Test-Path $csvPath)) {
-        Write-Host "Creating utilisateurs.csv file..." -ForegroundColor Yellow
-
-        $users = @(
-            [PSCustomObject]@{Nom="Pierre";Prénom="André";Poste="TTP";UserName="pAndre";Password="pA12345!";Statut="Actif";DateDernierLogin="2024-08-24 9:00:00"},
-            [PSCustomObject]@{Nom="Nicholas";Prénom="Judith";Poste="Secrétaire";UserName="nJudith";Password="nJ12345!";Statut="Verrouillé";DateDernierLogin="2024-08-24 9:00:00"},
-            [PSCustomObject]@{Nom="Tremblay";Prénom="Antoine";Poste="admin";UserName="tAntoine";Password="tA12345!";Statut="Actif";DateDernierLogin="2024-08-24 9:00:00"},
-            [PSCustomObject]@{Nom="Joseph";Prénom="Mariah";Poste="TTP";UserName="jMariah";Password="jM12345!";Statut="Inactif";DateDernierLogin="2024-08-24 9:00:00"},
-            [PSCustomObject]@{Nom="Lafrancois";Prénom="Etienne";Poste="Secrétaire";UserName="lEtienne";Password="lE12345!";Statut="Actif";DateDernierLogin="2024-08-24 9:00:00"}
-        )
-
-        $users | Export-Csv -Path $csvPath -Delimiter ";" -NoTypeInformation -Encoding UTF8
-        Write-Host "✓ CSV file created successfully!" -ForegroundColor Green
-    }
-}
+$domain  = "script.local"
 
 # ============================================================================
 # FUNCTION: Validate-Password
@@ -40,11 +20,7 @@ function Validate-Password {
         $password.Length -ge 8 -and
         $password -cmatch "[a-z]" -and
         $password -cmatch "[A-Z]" -and
-        $password -match "[!|»/$%?&*()\-_+<>
-
-\[\]
-
-^{}]"
+        $password -match "[!/$%?&*()\-_+<>[\]^{}]"
     )
 }
 
@@ -172,5 +148,156 @@ function Option3-ConnectToAccount {
     $users | Export-Csv -Path $csvPath -Delimiter ";" -NoTypeInformation -Encoding UTF8
 
     Write-Host "✓ LOGIN RÉUSSI" -ForegroundColor Green
+    Write-Host "Bienvenue, $($user.Prénom) $($user.Nom)!"
+    Write-Host "Poste : $($user.Poste)"
+    Write-Host "Dernière connexion : $($user.DateDernierLogin)"
     Write-Host ""
 }
+
+# ============================================================================
+# FUNCTION: Option4-ExportToAD
+# Export users to AD, placing them in OU by Poste and adding to mapped group
+# ============================================================================
+function Option4-ExportToAD {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "   EXPORTER VERS ACTIVE DIRECTORY" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    # Import users
+    $users = Import-Csv -Path $csvPath -Delimiter ";"
+
+    # Counters
+    $successCount = 0
+    $skipCount    = 0
+    $errorCount   = 0
+
+    # OU and Group mappings
+    $ouMapping = @{
+        "TTP"        = "OU=TTP,OU=Exercice3,DC=script,DC=local"
+        "Secrétaire" = "OU=Secrétaire,OU=Exercice3,DC=script,DC=local"
+        "admin"      = "OU=admin,OU=Exercice3,DC=script,DC=local"
+    }
+
+    $groupMapping = @{
+        "TTP"        = "CN=TTP,OU=Exercice3,DC=script,DC=local"
+        "Secrétaire" = "CN=Secretaire,OU=Exercice3,DC=script,DC=local"
+        "admin"      = "CN=Administrators,CN=Builtin,DC=script,DC=local"
+    }
+
+    Write-Host "Début de l'exportation..." -ForegroundColor Yellow
+    Write-Host ""
+
+    foreach ($user in $users) {
+        Write-Host "Traitement de $($user.UserName)..." -ForegroundColor Gray
+
+        try {
+            # Skip disabled/inactive accounts if desired (optional)
+            # if ($user.Statut -ne "Actif") { Write-Host "  → Compte non actif, ignoré"; $skipCount++; continue }
+
+            # Check if user exists
+            $existing = Get-ADUser -Filter "SamAccountName -eq '$($user.UserName)'" -ErrorAction SilentlyContinue
+            if ($existing) {
+                Write-Host "  → Utilisateur existe déjà, ignoré" -ForegroundColor Yellow
+                $skipCount++
+                continue
+            }
+
+            # Resolve OU path from Poste
+            $ouPath = $ouMapping[$user.Poste]
+            if (-not $ouPath) {
+                Write-Host "  ✗ Poste inconnu ou OU non mappé: $($user.Poste)" -ForegroundColor Red
+                $errorCount++
+                continue
+            }
+
+            # Prepare password
+            $securePassword = ConvertTo-SecureString $user.Password -AsPlainText -Force
+
+            # Create AD user
+            $adParams = @{
+                Name                  = "$($user.Prénom) $($user.Nom)"
+                GivenName             = $user.Prénom
+                Surname               = $user.Nom
+                SamAccountName        = $user.UserName
+                UserPrincipalName     = "$($user.UserName)@$domain"
+                AccountPassword       = $securePassword
+                Enabled               = ($user.Statut -eq "Actif")
+                Path                  = $ouPath
+                ChangePasswordAtLogon = $true
+            }
+
+            New-ADUser @adParams
+
+            # Add to group
+            $groupDN = $groupMapping[$user.Poste]
+            if ($groupDN) {
+                Add-ADGroupMember -Identity $groupDN -Members $user.UserName
+                Write-Host "  ✓ Créé et ajouté au groupe $($user.Poste)" -ForegroundColor Green
+            } else {
+                Write-Host "  ! Aucun groupe mappé pour le poste $($user.Poste)" -ForegroundColor Yellow
+            }
+
+            $successCount++
+
+        } catch {
+            Write-Host "  ✗ Erreur: $($_.Exception.Message)" -ForegroundColor Red
+            $errorCount++
+        }
+    }
+
+    # Summary
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "   RÉSUMÉ DE L'EXPORTATION" -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "Utilisateurs créés : $successCount" -ForegroundColor Green
+    Write-Host "Utilisateurs ignorés : $skipCount" -ForegroundColor Yellow
+    Write-Host "Erreurs : $errorCount" -ForegroundColor Red
+    Write-Host "Total traité : $($users.Count)" -ForegroundColor White
+    Write-Host ""
+}
+
+# ============================================================================
+# MAIN PROGRAM EXECUTION
+# ============================================================================
+Write-Host ""
+Write-Host "============================================" -ForegroundColor Cyan
+Write-Host "  SYSTÈME DE GESTION DES UTILISATEURS" -ForegroundColor Cyan
+Write-Host "  Domaine: script.local" -ForegroundColor Cyan
+Write-Host "============================================" -ForegroundColor Cyan
+Write-Host ""
+
+Initialize-CSVFile
+
+do {
+    Show-Menu
+    $choice = Read-Host "Choisissez une option (1-5)"
+
+    switch ($choice) {
+        "1" { Option1-ListUsers }
+        "2" { Option2-AddNewUser }
+        "3" { Option3-ConnectToAccount }
+        "4" { Option4-ExportToAD }
+        "5" {
+            Write-Host ""
+            Write-Host "========================================" -ForegroundColor Cyan
+            Write-Host "  Au revoir! Merci d'avoir utilisé" -ForegroundColor Cyan
+            Write-Host "  le système de gestion." -ForegroundColor Cyan
+            Write-Host "========================================" -ForegroundColor Cyan
+            Write-Host ""
+            break
+        }
+        default {
+            Write-Host ""
+            Write-Host "✗ Option invalide! Choisissez entre 1 et 5." -ForegroundColor Red
+        }
+    }
+
+    if ($choice -ne "5") {
+        Write-Host ""
+        Write-Host "Appuyez sur Entrée pour continuer..." -ForegroundColor Gray
+        Read-Host
+    }
+} while ($choice -ne "5")
