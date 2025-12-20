@@ -1,17 +1,13 @@
-# ============================================================================
 # EXERCISE 3: CSV USER MANAGEMENT SYSTEM WITH ACTIVE DIRECTORY INTEGRATION
-# ============================================================================
+
 # Domain: script.local
-# ============================================================================
 
 Import-Module ActiveDirectory
 
 $csvPath = "C:\Users\Administrator\Downloads\utilisateurs.csv"
 $domain  = "script.local"
 
-# ============================================================================
-# FUNCTION: Validate-Password
-# ============================================================================
+# Validate-Password
 function Validate-Password {
     param ([string]$password)
     return (
@@ -22,9 +18,7 @@ function Validate-Password {
     )
 }
 
-# ============================================================================
-# FUNCTION: Show-Menu
-# ============================================================================
+# Show-Menu
 function Show-Menu {
     Write-Host ""
     Write-Host "============================================" -ForegroundColor Cyan
@@ -38,9 +32,7 @@ function Show-Menu {
     Write-Host "============================================" -ForegroundColor Cyan
 }
 
-# ============================================================================
-# FUNCTION: Option1-ListUsers
-# ============================================================================
+# Option1-ListUsers
 function Option1-ListUsers {
     $users = Import-Csv -Path $csvPath -Delimiter ";"
     $activeUsers = $users | Where-Object { $_.Statut -eq "Actif" }
@@ -63,15 +55,14 @@ function Option1-ListUsers {
     Write-Host "Total d'utilisateurs actifs : $($activeUsers.Count)" -ForegroundColor Cyan
 }
 
-# ============================================================================
-# FUNCTION: Option2-AddNewUser
-# ============================================================================
+# Option2-AddNewUser
+
 function Option2-AddNewUser {
     $nom = Read-Host "Entrez le nom de famille"
-    if ([string]::IsNullOrWhiteSpace($nom)) { Write-Host "✗ Le nom est obligatoire!" -ForegroundColor Red; return }
+    if ([string]::IsNullOrWhiteSpace($nom)) { Write-Host "Le nom est obligatoire!" -ForegroundColor Red; return }
 
     $prenom = Read-Host "Entrez le prénom"
-    if ([string]::IsNullOrWhiteSpace($prenom)) { Write-Host "✗ Le prénom est obligatoire!" -ForegroundColor Red; return }
+    if ([string]::IsNullOrWhiteSpace($prenom)) { Write-Host "Le prénom est obligatoire!" -ForegroundColor Red; return }
 
     Write-Host "Choisissez le poste:"
     Write-Host "  1. TTP"
@@ -82,7 +73,7 @@ function Option2-AddNewUser {
         "1" { "TTP" }
         "2" { "Secrétaire" }
         "3" { "admin" }
-        default { Write-Host "✗ Choix invalide!" -ForegroundColor Red; return }
+        default { Write-Host "Choix invalide!" -ForegroundColor Red; return }
     }
 
     $userName = ($prenom[0] + $nom).ToLower() -replace '\s', ''
@@ -96,16 +87,16 @@ function Option2-AddNewUser {
             $userExists = $existingUsers | Where-Object { $_.UserName -eq $userName }
             $counter++
         } while ($userExists)
-        Write-Host "→ Nouveau nom d'utilisateur généré: $userName" -ForegroundColor Yellow
+        Write-Host "Nouveau nom d'utilisateur généré: $userName" -ForegroundColor Yellow
     }
 
     do {
         $password = Read-Host "Entrez le mot de passe"
         $isValid = Validate-Password -password $password
-        if (-not $isValid) { Write-Host "✗ Mot de passe faible! Réessayez." -ForegroundColor Red }
+        if (-not $isValid) { Write-Host "Mot de passe faible! Réessayez." -ForegroundColor Red }
     } while (-not $isValid)
 
-    Write-Host "✓ Mot de passe fort accepté!" -ForegroundColor Green
+    Write-Host "Mot de passe fort accepté!" -ForegroundColor Green
     $currentDateTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
     $newUser = [PSCustomObject]@{
@@ -120,7 +111,7 @@ function Option2-AddNewUser {
 
     $newUser | Export-Csv -Path $csvPath -Delimiter ";" -NoTypeInformation -Append -Encoding UTF8
 
-    Write-Host "✓ UTILISATEUR CRÉÉ AVEC SUCCÈS!" -ForegroundColor Green
+    Write-Host "UTILISATEUR CRÉÉ AVEC SUCCÈS!" -ForegroundColor Green
     Write-Host "Nom complet : $prenom $nom"
     Write-Host "Nom d'utilisateur : $userName"
     Write-Host "Poste : $poste"
@@ -128,33 +119,30 @@ function Option2-AddNewUser {
     Write-Host "Date de création : $currentDateTime"
 }
 
-# ============================================================================
-# FUNCTION: Option3-ConnectToAccount
-# ============================================================================
+# Option3-ConnectToAccount
+
 function Option3-ConnectToAccount {
     $inputUserName = Read-Host "Nom d'utilisateur"
     $inputPassword = Read-Host "Mot de passe"
     $users = Import-Csv -Path $csvPath -Delimiter ";"
     $user = $users | Where-Object { $_.UserName -eq $inputUserName }
 
-    if (-not $user) { Write-Host "✗ LOGIN ÉCHOUÉ - utilisateur introuvable" -ForegroundColor Red; return }
-    if ($user.Statut -eq "Verrouillé") { Write-Host "✗ LOGIN ÉCHOUÉ - compte verrouillé" -ForegroundColor Red; return }
-    if ($user.Statut -eq "Inactif") { Write-Host "✗ LOGIN ÉCHOUÉ - compte inactif" -ForegroundColor Red; return }
-    if ($user.Password -ne $inputPassword) { Write-Host "✗ LOGIN ÉCHOUÉ - mot de passe incorrect" -ForegroundColor Red; return }
+    if (-not $user) { Write-Host "LOGIN ÉCHOUÉ - utilisateur introuvable" -ForegroundColor Red; return }
+    if ($user.Statut -eq "Verrouillé") { Write-Host "LOGIN ÉCHOUÉ - compte verrouillé" -ForegroundColor Red; return }
+    if ($user.Statut -eq "Inactif") { Write-Host "LOGIN ÉCHOUÉ - compte inactif" -ForegroundColor Red; return }
+    if ($user.Password -ne $inputPassword) { Write-Host "LOGIN ÉCHOUÉ - mot de passe incorrect" -ForegroundColor Red; return }
 
     $user.DateDernierLogin = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $users | Export-Csv -Path $csvPath -Delimiter ";" -NoTypeInformation -Encoding UTF8
 
-    Write-Host "✓ LOGIN RÉUSSI" -ForegroundColor Green
+    Write-Host "LOGIN RÉUSSI" -ForegroundColor Green
     Write-Host "Bienvenue, $($user.Prénom) $($user.Nom)!"
     Write-Host "Poste : $($user.Poste)"
     Write-Host "Dernière connexion : $($user.DateDernierLogin)"
     Write-Host ""
 }
 
-# ============================================================================
-# FUNCTION: Option4-ExportToAD
-# ============================================================================
+# Option4-ExportToAD
 
 function Option4-ExportToAD {
     $users = Import-Csv -Path $csvPath -Delimiter ";"
@@ -174,7 +162,7 @@ function Option4-ExportToAD {
         try {
             $existing = Get-ADUser -Filter "SamAccountName -eq '$($user.UserName)'" -ErrorAction SilentlyContinue
             if ($existing) {
-                Write-Host "  → Utilisateur existe déjà, ignoré" -ForegroundColor Yellow
+                Write-Host "  Utilisateur existe déjà, ignoré" -ForegroundColor Yellow
                 continue
             }
 
@@ -190,17 +178,17 @@ function Option4-ExportToAD {
                        -Path $ouPath `
                        -ChangePasswordAtLogon $true
 
-            # Ajout au groupe si mappé
+            # add to group if mapped
             if ($groupMapping.ContainsKey($user.Poste)) {
                 $groupDN = $groupMapping[$user.Poste]
                 Add-ADGroupMember -Identity $groupDN -Members $user.UserName
-                Write-Host "  ✓ Ajouté au groupe $($user.Poste)" -ForegroundColor Green
+                Write-Host "  Ajouté au groupe $($user.Poste)" -ForegroundColor Green
             } else {
-                Write-Host "  ✗ Poste inconnu ou non mappé : '$($user.Poste)'" -ForegroundColor Red
+                Write-Host "  Poste inconnu ou non mappé : '$($user.Poste)'" -ForegroundColor Red
             }
 
         } catch {
-            Write-Host "  ✗ Erreur: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "  Erreur: $($_.Exception.Message)" -ForegroundColor Red
         }
     }
 
@@ -212,10 +200,8 @@ function Option4-ExportToAD {
     Write-Host ""
 }
 
-
-# ============================================================================
 # MAIN PROGRAM EXECUTION
-# ============================================================================
+
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "  SYSTÈME DE GESTION DES UTILISATEURS" -ForegroundColor Cyan
@@ -243,7 +229,7 @@ do {
         }
         default {
             Write-Host ""
-            Write-Host "✗ Option invalide! Choisissez entre 1 et 5." -ForegroundColor Red
+            Write-Host "Option invalide! Choisissez entre 1 et 5." -ForegroundColor Red
         }
     }
 
